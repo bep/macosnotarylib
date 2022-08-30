@@ -30,7 +30,7 @@ const (
 )
 
 // New creates a new Notarizer. You can call Submit multiple time to submit multiple files,
-// but the current JWT token is set to expire after 20 minutes.
+// but the JWT token will eventually expire, default after 20 minutes.
 func New(opts Options) (*Notarizer, error) {
 	if opts.InfoLoggerf == nil {
 		opts.InfoLoggerf = func(format string, a ...any) {}
@@ -38,6 +38,14 @@ func New(opts Options) (*Notarizer, error) {
 
 	if opts.SignFunc == nil {
 		return nil, errors.New("SignFunc is required")
+	}
+
+	if opts.SubmissionTimeout == 0 {
+		opts.SubmissionTimeout = 5 * time.Minute
+	}
+
+	if opts.TokenTimeout == 0 {
+		opts.TokenTimeout = 20 * time.Minute
 	}
 
 	n := &Notarizer{
@@ -64,6 +72,14 @@ type Options struct {
 
 	// Your private key ID from App Store Connect.
 	Kid string
+
+	// Timeout waiting for the notarization to complete.
+	// Defaults to 5 minutes.
+	SubmissionTimeout time.Duration
+
+	// The JWT signing token expires after this duration,
+	// default is 20 minutes.
+	TokenTimeout time.Duration
 
 	// The signing function to use.
 	// Return the result of token.SignedString(appStoreConnectPrivateKey)
@@ -174,7 +190,7 @@ func (n *Notarizer) Submit(filename string) error {
 
 	n.infof("Successfully uploaded file to S3 location %s", output.Location)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), n.opts.SubmissionTimeout)
 	defer cancel()
 
 	var (
@@ -193,6 +209,9 @@ func (n *Notarizer) Submit(filename string) error {
 			done, err = n.checkStatus(count, resp.Data.ID)
 			if err != nil {
 				return err
+			}
+			if done {
+				n.infof("Notarization completed!")
 			}
 		}
 	}
@@ -277,8 +296,9 @@ func (n *Notarizer) printLogInfo(id string) error {
 }
 
 func (n *Notarizer) createAndSignToken() (string, error) {
+	exp := time.Now().Add(n.opts.TokenTimeout).UTC().Unix()
 	iat := time.Now().UTC().Unix()
-	exp := time.Now().Add(20 * time.Minute).UTC().Unix()
+
 	method := jwt.SigningMethodES256
 	tok := &jwt.Token{
 		Header: map[string]interface{}{
