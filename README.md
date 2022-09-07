@@ -5,7 +5,7 @@
 
 This notarizes files using Apple's [Notary API](https://developer.apple.com/documentation/notaryapi), which means that it can run on any OS.
 
-Note that the archived binary must already be signed, see [testdata/sign.sh](testdata/sign.sh), which unortunate is harder to do outside of a Macintosh.
+Note that the archived binary must already be signed, see [testdata/sign.sh](testdata/sign.sh), which unortunate is harder to do outside of a Macintosh. See [buildpkg](https://github.com/bep/buildpkg) for a more complete setup using this library.
 
 See the single test for a "how to use". Running that prints something ala:
 
